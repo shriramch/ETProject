@@ -1,0 +1,38 @@
+--- ../../../smtlib_grammars/BitvectorArrays.g4	2022-04-26 11:33:44.938881590 +0200
++++ grammar.g4	2022-04-28 10:19:05.733609532 +0200
+@@ -26,25 +26,15 @@
+     ;
+ 
+ bv_const
+-   : '#x0000000000000000'
+-   | '#x1111111111111111'
++   : '#x1111111111111111'
+    ;
+ 
+ bitvec_term 
+     : bv_const
+-    | 'b'
+-    | ParOpen 'bvnot' bitvec_term ParClose
++    | 'b'  
+     | ParOpen 'bvneg' bitvec_term ParClose
+-    | ParOpen 'bvand' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvor' bitvec_term bitvec_term ParClose
+     | ParOpen 'bvadd' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvmul' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvudiv' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvurem' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvshl' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvlshr' bitvec_term bitvec_term ParClose
+     | ParOpen 'select' arr_term bitvec_term ParClose
+-    | ParOpen 'ite' bool_term bitvec_term bitvec_term ParClose
+     ;
+ 
+ arr_term 
+@@ -54,7 +44,6 @@
+ 
+ bool_term
+     : ParOpen '=' arr_term arr_term ParClose
+-    | ParOpen 'distinct' arr_term arr_term ParClose
+     ;
+ 
+ checkSat

@@ -1,0 +1,45 @@
+--- ../../../smtlib_grammars/StringsRegex.g4	2022-04-28 16:31:31.112010615 +0200
++++ grammar.g4	2022-04-28 16:29:08.984515606 +0200
+@@ -23,15 +23,7 @@
+     ;
+ 
+ bool_term
+-    : boolean
+-    | ParOpen '=' str_term str_term ParClose
+-    | ParOpen 'distinct' str_term str_term ParClose
+-    | ParOpen 'str.in_re' str_term regex_term ParClose
+-    | ParOpen 'str.<=' str_term str_term ParClose
+-    | ParOpen 'str.prefixof' str_term str_term ParClose
+-    | ParOpen 'str.suffixof' str_term str_term ParClose
+-    | ParOpen 'str.contains' str_term str_term ParClose
+-    | ParOpen 'str.is_digit' str_term ParClose
++    : ParOpen 'str.in_re' str_term regex_term ParClose
+     ;
+ 
+ string 
+@@ -52,22 +44,16 @@
+     ;
+ 
+ regex_term
+-    : regex_const
++    : regex_const 
+     | ParOpen 'str.to_re' str_term ParClose
+-    | ParOpen 're.union' regex_term regex_term ParClose
+-    | ParOpen 're.inter' regex_term regex_term ParClose
+     | ParOpen 're.++' regex_term regex_term ParClose
+     | ParOpen 're.*' regex_const ParClose
+-    | ParOpen 're.comp' regex_term ParClose
+-    | ParOpen 're.diff' regex_term regex_term ParClose
+-    | ParOpen 're.+' regex_term ParClose
+     | ParOpen 're.opt' regex_term ParClose
+-    | ParOpen 're.range' str_term str_term ParClose
++    | ParOpen 're.diff' regex_term regex_term ParClose
+     ;
+ 
+ str_term
+-    : string
+-    | var_name
++    : var_name
+     ;
+ 
+ integer

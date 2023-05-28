@@ -1,0 +1,52 @@
+#! /usr/bin/env python3
+
+
+"""
+Reads in antlr grammar (.g4-file), generates Lexer, Parser from the grammar
+and copies it to ./grammar.
+"""
+
+import os
+import shutil
+import argparse
+import subprocess as sp
+
+
+GRAMMAR_DIR = "grammar"
+TMP_FILE = "/tmp/EEGrammar.g4"
+
+
+def cleanup():
+    if os.path.exists(GRAMMAR_DIR):
+        shutil.rmtree(GRAMMAR_DIR)
+        os.mkdir(GRAMMAR_DIR)
+
+
+def canonicalize_grammar(grammar_file):
+    new_lines = []
+    with open(grammar_file, "r") as tf:
+        for line in tf.readlines():
+            if "grammar " in line:
+                name = line.split(" ")[-1]
+                new_line = line.replace(name, "EEGrammar;")
+            else:
+                new_line = line
+            new_lines.append(new_line)
+    with open(grammar_file, "w") as tf:
+        tf.write("".join(new_lines))
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("grammar_file", help="antlr4 grammar")
+args = parser.parse_args()
+cleanup()
+shutil.copyfile(args.grammar_file, TMP_FILE)
+canonicalize_grammar(TMP_FILE)
+
+antlr_bin = os.path.abspath(os.path.dirname(__file__)) + "/antlr-4.9.2-complete.jar"
+cmd = "java -jar {} -Dlanguage=Python3 {} -o {}".format(antlr_bin, TMP_FILE, GRAMMAR_DIR)
+out = sp.getoutput(cmd)
+
+if out.strip() != '':
+    print(out, flush = True)
+    exit(1)

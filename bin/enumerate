@@ -1,0 +1,455 @@
+#! /usr/bin/env python3
+
+"""
+Enumerates a prepared grammar up to a given bound.
+
+usage:  bin/enumerate <binary_clis> <depth> -n <num_cores>
+
+- `<binary_clis>` is a sequence of commands enclosed by "s and separated by     
+   semicola 
+
+- `<depth>` is the depth bound for the enumerator
+
+- `<num_cores>` is the depth bound for the enumerator
+
+""" 
+
+import sys
+import os 
+
+sys.path.append(os.getcwd())
+
+import math
+import time
+import random
+random.seed(10)
+import copy
+import subprocess
+
+from pathlib import Path
+from ctypes import c_double
+
+import multiprocessing as mp
+from threading import Thread
+from collections import defaultdict
+from multiprocessing import Process, Value, Array, Lock, Manager
+
+mp.set_start_method("fork")
+mutex = Lock()
+
+path = Path(__file__)
+rootpath = str(path.parent.absolute().parent)
+sys.path.append(rootpath)
+
+from antlr4.InputStream import InputStream
+from antlr4.CommonTokenStream import CommonTokenStream
+
+
+from grammar.EEGrammarParser import EEGrammarParser
+from grammar.EEGrammarLexer import EEGrammarLexer
+
+try:
+    from grammar.EEGrammarParser import EEGrammarParser
+    from grammar.EEGrammarLexer import EEGrammarLexer
+except:
+     print(
+        "Error: no grammar found.\nExecute ./bin/prepare_grammar <grammar_file>"
+     )
+     exit(1)
+
+from src.Util import pretty_print, dump_formula, debug
+from src.Parsing import (
+        check_clis, check_executable, check_executable, check_logfolder,
+        do_checks, do_parsing
+)
+
+from src.AtnSearchCommon import (
+    State, handle_atom_transition, handle_set_transition, unroll, get_sucessors,
+    precompute_non_const_productions
+)
+
+from src.ThreadUtil import (
+    termination_criterion, argmax, lst_lens, half_lst, compute_idle_threads,
+    chunk, all_threads_are_working, distribute_work
+)
+
+# Customization section necessary to tailor the enumeration to a specific 
+# target oracle, e.g. SMT solvers. All other functions are generic, and 
+# should work with other targets.       
+#
+# -begin- Customization to testing SMT solvers
+#
+
+from sat.solver_testing.Oracle import test
+from sat.solver_testing.Logger import (
+        init_logging, log_strategy_solvers, log_status
+)
+#
+# -end- Customization to testing SMT solvers
+
+def setup():
+    mock_stream = InputStream("")
+    lexer = EEGrammarLexer(mock_stream)
+    lexer.removeErrorListeners()
+    stream = CommonTokenStream(lexer)
+    parser = EEGrammarParser(stream)
+    rule_idx = len(parser.ruleNames) - 1
+    atn = parser.atn
+    atn_state = atn.ruleToStartState[rule_idx]
+    return atn_state, parser
+
+
+class Statistics(Process):
+
+    def __init__(self, statuses, requests, queue, terminate, 
+                 num_bugs, num_nodes, num_tests, num_ineffective_tests, 
+                 start_time, 
+                 num_active_processes,
+                 args, to_csv_file=None, interval_size_in_secs=2.0,
+                 solver_stats=None):
+        self.statuses = statuses
+        self.requests = requests
+        self.queue = queue
+        self.terminate = terminate
+
+        self.num_nodes = num_nodes
+        self.num_tests = num_tests
+        self.num_ineffective_tests = num_ineffective_tests
+        self.start_time = start_time 
+        self.num_active_processes = num_active_processes
+        self.num_bugs = num_bugs
+        self.args = args
+        self.to_csv_file = to_csv_file
+        self.interval_size_in_secs = interval_size_in_secs
+        if self.args.solver_summary_stats:
+            self.solver_stats = solver_stats 
+
+        if self.to_csv_file:
+            self._csv_file = open(self.to_csv_file, "w")
+            self._csv_file.write(
+                "elapsed_time,num_nodes,num_tests,num_bugs,eff,workers\n"
+            )
+            self._csv_file.flush()
+        
+        super().__init__()
+
+    def termination_criterion(self):
+        if not self.queue.empty():
+            return False
+
+        for i in range(len(self.statuses)):
+            if self.statuses[i] != 0: return False
+        return True
+
+    def _state(self):
+       return "stats=" + str([w for w in self.statuses])\
+              + " reqs="+ str([w for w in self.requests])
+
+    def _stats(self):
+        elapsed_time = time.time() - self.start_time
+        workers = 0
+        num_bugs = 0
+        num_nodes = 0
+        num_tests = 0
+        num_ineffective_tests = 0
+        eff = 0
+
+        for i in range(len(self.statuses)):
+            if self.statuses[i] == 1: workers += 1
+            num_bugs += self.num_bugs[i]
+            num_nodes += self.num_nodes[i] 
+            num_tests += self.num_tests[i]
+            num_ineffective_tests += self.num_ineffective_tests[i]
+
+        if not self.args.max_tests == -1 and num_tests >= self.args.max_tests:
+            print(self._interim_stats_format(elapsed_time, num_bugs, num_nodes, num_tests, eff, workers), flush=True)
+            if self.to_csv_file:
+                self._csv_file.write(self._interim_stats_csv_format(elapsed_time, num_bugs, num_nodes, num_tests, eff, workers))
+                self._csv_file.flush()     
+            exit(0)
+
+        if num_tests != 0: 
+           eff = (num_tests - num_ineffective_tests) / num_tests 
+           eff *= 100
+        else:
+           eff = 0.0
+
+        return elapsed_time, num_bugs, num_nodes, num_tests, eff, workers
+
+    def _interim_stats_format(self, elapsed_time, num_bugs, num_nodes, num_tests, eff, workers):
+        return "[t=" + str("{:.2f}".format(elapsed_time))\
+                + " nodes="+str(num_nodes)\
+                + " tests="+str(num_tests)\
+                + " triggers="+str(num_bugs)\
+                + " eff="+str(round(eff,2)) + "%"\
+                + " proc="+str(self.num_active_processes[0])\
+                + " workers="+str(workers)+"]"
+
+
+    def _interim_stats(self):
+        elapsed_time, num_bugs, num_nodes, num_tests, eff, workers = self._stats()
+        return self._interim_stats_format(elapsed_time, num_bugs, num_nodes, num_tests, eff, workers) 
+
+
+    def _interim_stats_csv_format(self,elapsed_time, num_bugs, num_nodes, num_tests, eff, workers):  
+            return str("{:.2f}".format(elapsed_time)) + ","\
+                + str(num_nodes) + ","\
+                + str(num_tests) + ","\
+                + str(num_bugs) + "," \
+                + str(round(eff,2)) + "%" + ","\
+                + str(workers)+"\n" 
+    
+    def _interim_stats_csv(self):
+        elapsed_time, num_bugs, num_nodes, num_tests, eff, workers = self._stats()
+        return self._interim_stats_csv_format(elapsed_time, num_bugs, num_nodes, num_tests, eff, workers)
+
+
+    def _summary_stats(self):
+        elapsed_time, num_bugs, num_nodes, num_tests, eff, workers = self._stats()
+        summary = "Finished search. {} tests executed, eff: {}%\n".format(num_tests, round(eff,2))
+        summary += "{} nodes generated, {:.2f}s elapsed\n".format(num_nodes,elapsed_time)
+        summary += "Executed up to depth "+ str(MAX_DEPTH)+"\n"
+        summary += "{} bug triggers found".format(num_bugs)
+        if self.args.solver_summary_stats:
+            print(self.args.solver_summary_stats)
+            fn = open(self.args.solver_summary_stats,"w")
+            for k in self.solver_stats.keys():
+                fn.write(k+","+str(self.solver_stats[k])+"\n")
+            fn.close()
+        return summary 
+
+    def run(self):
+        last_time = None 
+        counter = 0 
+        CONVERGENCE_THRESHOLD_IN_MS = 1000
+
+        while True:
+            if not last_time or time.time() - last_time >= self.interval_size_in_secs:
+                if self.to_csv_file:
+                    self._csv_file.write(self._interim_stats_csv())
+                    self._csv_file.flush() 
+                print(self._interim_stats(), flush=True)
+                last_time = time.time()
+
+
+            if self.termination_criterion(): 
+                counter += 1   
+            else: 
+                counter = 0
+            
+            if (counter >= CONVERGENCE_THRESHOLD_IN_MS): break
+
+
+        print(self._summary_stats(), flush=True)
+        if self.to_csv_file:
+            self._csv_file.write(self._interim_stats_csv())
+            self._csv_file.flush()
+
+
+
+class Search(Process):
+
+    def __init__(self,
+            args,
+            process_id,
+            open_list,
+            statuses,
+            requests,
+            queue,
+            terminate,
+            num_active_processes,
+            num_bugs,
+            num_nodes,
+            num_tests,
+            num_ineffective_tests,
+            parser,
+            solver_stats=None
+            ):
+
+        self.args = args
+        self.process_id = process_id
+        self.open_list = open_list
+        self.statuses = statuses
+        self.requests = requests
+        self.queue = queue
+        self.terminate = terminate
+        self.num_active_processes = num_active_processes
+        self.num_bugs = num_bugs
+        self.num_nodes = num_nodes
+        self.num_tests = num_tests 
+        self.num_ineffective_tests = num_ineffective_tests
+        self.parser = parser
+        self.non_const_productions = precompute_non_const_productions(parser)
+        if self.args.solver_summary_stats:
+            self.solver_stats = solver_stats
+        else:
+            self.solver_stats = None
+
+
+        super().__init__()
+
+    def dfs(self):
+        while len(self.open_list) != 0:
+            curr = self.open_list.pop()
+            self.num_nodes[self.process_id] += 1
+
+            if curr.stack == [] and curr.atom_seq != "":
+                formula = pretty_print(curr)
+                test_name = str(self.num_tests[self.process_id])\
+                                   + "_" + str(self.process_id)
+                fn = dump_formula(test_name, formula, args)
+
+                if not (len(self.args.CLIS) == 1 and len(self.args.CLIS[0]) == 0):
+                    if not self.args.generate_only:
+                        num_bugs, ineffective = test(self.num_tests, fn, args, self.num_active_processes, self.solver_stats)
+                        self.num_bugs[self.process_id] += num_bugs
+                        self.num_ineffective_tests[self.process_id] += ineffective
+                try:
+                    if not self.args.keep_files:
+                        subprocess.getoutput("rm -rf "+fn)
+                except:
+                    print("Error: Couldn't remove "+fn, flush = True)
+
+                self.num_tests[self.process_id] += 1 
+                continue
+            
+            for succ in get_sucessors(parser, curr, MAX_DEPTH):
+                if succ.depth() <= MAX_DEPTH:
+                    if succ.depth() == MAX_DEPTH and self.non_const_productions[succ.stack[-1].ruleIndex]:
+                        # prune non-realizable path
+                        continue
+                    self.open_list.append(succ)
+
+            if len(self.open_list) >= 2 and len(self.requests) > 1:
+                if self.requests[self.process_id] != -1:
+                    self.send_work(self.requests[self.process_id])
+                    self.requests[self.process_id] = -1
+
+    def send_work(self, recipient_id):
+        pivot = len(self.open_list) // 2
+        self.queue.put(self.open_list[pivot:])
+        self.open_list = self.open_list[:pivot]
+
+    def request_work(self):
+        with mutex:
+            candidates = [i for i, _ in enumerate(self.statuses)
+                          if self.statuses[i] != 0
+                          and self.requests[i] == -1
+                          and i != self.process_id]
+            if len(candidates) == 0:
+                return False
+
+            provider_id = random.choice(candidates)
+            self.requests[provider_id] = self.process_id
+        return True
+
+    def receive_work(self):
+        if self.queue.empty():
+            return False
+        self.open_list = self.queue.get()
+        if len(self.open_list) > 0: self.statuses[self.process_id] = 1
+        return True
+
+    def termination_criterion(self):
+        return self.terminate[0] == 1
+
+    def run(self):
+        while not self.termination_criterion():
+            if len(self.open_list) == 0:
+                self.statuses[self.process_id] = 0
+
+                while not self.request_work():
+                    if self.termination_criterion(): break
+                    continue
+                
+                while not self.receive_work():
+                    if self.termination_criterion(): break
+                    continue
+            else:
+                self.statuses[self.process_id] = 1
+                self.dfs()
+
+
+if __name__ == "__main__":
+    start_time = time.time()  
+    args = do_parsing()
+    args.CLIS = args.CLIS.split(";")
+    do_checks(args)
+    atn_state, parser = setup()
+    init_state = State(atn_state, "")
+    init_state.stack = []
+    # init_logging("exhautive_enumerator-depth-"+str(args.depth), False, "", args)
+    print("Bounded exhaustive testing(depth={}, n={})".format(
+          args.depth, args.num_workers), flush = True)
+
+    open_list = []
+    open_list.append(init_state)
+    closed_list = []
+
+    N = args.num_workers
+    MAX_DEPTH = args.depth
+
+    # statuses[i] = 0 iff i has no work
+    #               1 iff i has work
+    statuses = Array('i', [1] + [0 for _ in range(N - 1)])
+
+    # requests[i] =  j, process j requests work from process i
+    # requests[i] = -1, no process requests work from process i
+    requests = Array('i',[-1 for _ in range(N)])
+    terminate = Array('i',[0])
+    num_active_processes = Array('i',[0])
+
+    if args.solver_summary_stats:
+        manager = Manager()
+        solver_stats = manager.dict()
+        for solver_cli in args.CLIS:
+            solver_stats[solver_cli+"-unknown"] = 0
+            solver_stats[solver_cli+"-timeout"] = 0
+            solver_stats[solver_cli+"-error/rejected"] = 0
+            solver_stats["all-unvalidated_results"] = 0
+
+
+    # for communicating search nodes between the processes
+    queue = mp.Queue()
+    
+    # variables for statistics
+    num_bugs =  Array('i',[0 for _ in range(N)])
+    num_nodes = Array('i',[0 for _ in range(N)])
+    num_tests = Array('i',[0 for _ in range(N)])
+    num_ineffective_tests = Array('i',[0 for _ in range(N)])
+    
+    open_lists = [[init_state]] + [[] for _ in range(N - 1)]
+    if args.solver_summary_stats:
+        stats = Statistics(statuses, requests, queue, terminate,
+                           num_bugs, num_nodes, num_tests,
+                           num_ineffective_tests, start_time, 
+                           num_active_processes,
+                           args,
+                           to_csv_file=args.to_csv_file,
+                           interval_size_in_secs=args.interval_size_in_secs,
+                           solver_stats=solver_stats)
+    else:
+        stats = Statistics(statuses, requests, queue, terminate,
+                           num_bugs, num_nodes, num_tests,
+                           num_ineffective_tests, start_time,
+                           num_active_processes,
+                           args,
+                           to_csv_file=args.to_csv_file,
+                           interval_size_in_secs=args.interval_size_in_secs)
+    processes = []
+    for idx, ol in enumerate(open_lists):
+        if args.solver_summary_stats:
+            p = Search(args, idx, ol, statuses, requests, queue, terminate, num_active_processes,
+                       num_bugs, num_nodes, num_tests, num_ineffective_tests, parser, solver_stats)
+        else:
+            p = Search(args, idx, ol, statuses, requests, queue, terminate,num_active_processes,
+                       num_bugs, num_nodes, num_tests, num_ineffective_tests, parser)
+
+        p.start()
+        processes.append(p)
+
+    stats.start()
+    stats.join()
+
+    for p in processes:
+        p.kill()

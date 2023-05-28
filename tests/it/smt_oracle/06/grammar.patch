@@ -1,0 +1,21 @@
+--- ../../../smtlib_grammars/BitvectorArrays.g4	2022-04-26 11:33:44.938881590 +0200
++++ BitvectorArrays.g4	2022-04-26 13:44:00.734730780 +0200
+@@ -33,18 +33,9 @@
+ bitvec_term 
+     : bv_const
+     | 'b'
+-    | ParOpen 'bvnot' bitvec_term ParClose
+-    | ParOpen 'bvneg' bitvec_term ParClose
+-    | ParOpen 'bvand' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvor' bitvec_term bitvec_term ParClose
+     | ParOpen 'bvadd' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvmul' bitvec_term bitvec_term ParClose
+     | ParOpen 'bvudiv' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvurem' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvshl' bitvec_term bitvec_term ParClose
+-    | ParOpen 'bvlshr' bitvec_term bitvec_term ParClose
+     | ParOpen 'select' arr_term bitvec_term ParClose
+-    | ParOpen 'ite' bool_term bitvec_term bitvec_term ParClose
+     ;
+ 
+ arr_term 

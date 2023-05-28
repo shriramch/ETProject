@@ -1,0 +1,32 @@
+--- ../../../smtlib_grammars/Ints.g4	2022-04-19 14:31:06.207843003 +0200
++++ grammar.g4	2022-04-19 16:39:55.444940177 +0200
+@@ -10,7 +10,6 @@
+ 
+ var_name
+     : 'a'
+-    | 'b'
+     ;
+ 
+ var_type
+@@ -26,20 +25,12 @@
+     : integer
+     | var_name
+     | ParOpen '-' int_term ParClose
+-    | ParOpen '-' int_term int_term ParClose
+     | ParOpen '+' int_term int_term ParClose
+     | ParOpen '*' int_term int_term ParClose
+-    | ParOpen 'div' int_term int_term ParClose
+-    | ParOpen 'mod' int_term int_term ParClose
+-    | ParOpen 'abs' int_term ParClose
+     ; 
+ 
+ bool_term
+-    : ParOpen '=' int_term int_term ParClose
+-    | ParOpen '<=' int_term int_term ParClose
+-    | ParOpen '<' int_term int_term ParClose
+-    | ParOpen '>=' int_term int_term ParClose
+-    | ParOpen '>' int_term int_term ParClose
++    : ParOpen '>' '(- a)' int_term ParClose
+     ;
+ 
+ checkSat

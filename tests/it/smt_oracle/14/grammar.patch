@@ -1,0 +1,46 @@
+--- ../../../smtlib_grammars/Reals.g4	2022-04-19 14:31:06.207843003 +0200
++++ grammar.g4	2022-04-28 10:37:48.207878462 +0200
+@@ -10,7 +10,6 @@
+ 
+ var_name
+     : 'a'
+-    | 'b'
+     ;
+ 
+ var_type
+@@ -19,34 +18,17 @@
+ 
+ real
+     : '0.0' 
+-    | '1.0'
+     ;
+ 
+ real_term
+     : real
+     | var_name
+     | ParOpen '-' real_term ParClose
+-    | ParOpen '-' real_term real_term ParClose
+-    | ParOpen '+' real_term real_term ParClose
+-    | ParOpen '*' real_term real_term ParClose
+     | ParOpen '/' real_term real_term ParClose
+-    | ParOpen 'sin' real_term ParClose
+-    | ParOpen 'tan' real_term ParClose
+-    | ParOpen 'cos' real_term ParClose
+     ; 
+ 
+ bool_term
+-    : ParOpen '=' real_term real_term ParClose
+-    | ParOpen '<=' real_term real_term ParClose
+-    | ParOpen '<' real_term real_term ParClose
+-    | ParOpen '>=' real_term real_term ParClose
+-    | ParOpen '>' real_term real_term ParClose
+-    | ParOpen 'not' bool_term ParClose
+-    | ParOpen 'and' bool_term bool_term ParClose
+-    | ParOpen 'or' bool_term bool_term ParClose
+-    | ParOpen 'xor' bool_term bool_term ParClose
+-    | ParOpen '=' bool_term bool_term ParClose
+-    | ParOpen 'distinct' bool_term bool_term ParClose
++    : ParOpen '<' real_term real_term ParClose
+     ;
+ 
+ checkSat

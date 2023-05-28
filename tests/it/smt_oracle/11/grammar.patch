@@ -1,0 +1,41 @@
+--- ../../../smtlib_grammars/RealIntsRealVars.g4	2022-04-19 14:31:06.207843003 +0200
++++ grammar.g4	2022-04-28 09:22:44.885321784 +0200
+@@ -31,37 +31,17 @@
+     : integer
+     | ParOpen '-' int_term ParClose
+     | ParOpen '-' int_term int_term ParClose
+-    | ParOpen '+' int_term int_term ParClose
+-    | ParOpen '*' int_term int_term ParClose
+     | ParOpen 'div' int_term int_term ParClose
+-    | ParOpen 'mod' int_term int_term ParClose
+-    | ParOpen 'abs' int_term ParClose
+     | ParOpen 'to_int' real_term ParClose
+     ;
+ 
+ real_term
+     : real
+-    | var_name
+-    | ParOpen '-' real ParClose
+-    | ParOpen '-' real real ParClose
+     | ParOpen '+' real real ParClose
+-    | ParOpen '*' real real ParClose
+-    | ParOpen '/' real real ParClose
+-    | ParOpen 'to_real' int_term ParClose
+     ; 
+ 
+ bool_term
+-    : ParOpen '=' real_term real_term ParClose
+-    | ParOpen '<=' real_term real_term ParClose
+-    | ParOpen '<' real_term real_term ParClose
+-    | ParOpen '>=' real_term real_term ParClose
+-    | ParOpen '>' real_term real_term ParClose
+-    | ParOpen '=' int_term int_term ParClose
+-    | ParOpen '<=' int_term int_term ParClose
+-    | ParOpen '<' int_term int_term ParClose
+-    | ParOpen '>=' int_term int_term ParClose
+-    | ParOpen '>' int_term int_term ParClose
+-    | ParOpen 'is_int' real_term ParClose
++    : ParOpen '<' int_term int_term ParClose
+     ;
+ 
+ checkSat
