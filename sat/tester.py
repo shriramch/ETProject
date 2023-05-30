@@ -43,3 +43,4 @@ if vals is not None:
                 f.write("p cnf {} {}\n".format(n, len(conds)))
                 f.write("\n".join([" ".join([str(each) for each in cond] + ['0']) for cond in conds]))
                 f.write("\n-------------------------------\n")
+            print("Bug found")

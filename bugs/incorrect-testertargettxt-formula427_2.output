@@ -1,0 +1,12 @@
+*** REFERENCE 
+command: python3 ./regex/testers/tester.py ./regex/target/target.txt
+stderr:
+False
+stdout:
+./temp/formula427_2.smt2
+
+*** INCORRECT 
+command: ./regex/testers/tester ./regex/target/target.txt
+stderr:
+stdout:
+True

@@ -23,8 +23,8 @@ python3 ./sat/grammars/gen_grammar.py $vars $clauses > $grammar
 echo ./bin/prepare_grammar $grammar 
 ./bin/prepare_grammar $grammar 
 
-echo ./bin/enumerate -n 8 -m $maxtests --keep-files --generate-only "" $bound 
-./bin/enumerate -n 8 -m $maxtests --keep-files --generate-only "" $bound
+echo ./bin/enumerate -n 8 -d -m $maxtests --keep-files --generate-only "" $bound 
+./bin/enumerate -n 8 -d -m $maxtests --keep-files --generate-only "" $bound
 
 for file in "$tempfile"/* 
 do

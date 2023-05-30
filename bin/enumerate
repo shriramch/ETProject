@@ -80,8 +80,8 @@ from src.ThreadUtil import (
 # -begin- Customization to testing SMT solvers
 #
 
-from sat.solver_testing.Oracle import test
-from sat.solver_testing.Logger import (
+from regex.solver_testing.Oracle import test
+from regex.solver_testing.Logger import (
         init_logging, log_strategy_solvers, log_status
 )
 #
@@ -294,7 +294,7 @@ class Search(Process):
             self.num_nodes[self.process_id] += 1
 
             if curr.stack == [] and curr.atom_seq != "":
-                formula = pretty_print(curr)
+                formula = pretty_print(curr, self.args.delimit)
                 test_name = str(self.num_tests[self.process_id])\
                                    + "_" + str(self.process_id)
                 fn = dump_formula(test_name, formula, args)

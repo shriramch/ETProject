@@ -65,11 +65,15 @@ regex
     | basic_regex modifying_appendants
     | basic_regex regex 
     | basic_regex '|' regex 
-    | '.'
-    | '$'
-    | '^'
+    ;
+
+complete_regex
+    : regex
+    | '^' regex
+    | regex '$'
+    | '^' regex '$'
     ;
 
 start
-    : regex EOF
+    : complete_regex EOF
     ;

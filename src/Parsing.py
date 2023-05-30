@@ -47,6 +47,7 @@ def do_parsing():
     parser.add_argument("--logfolder", type=str, default="./logs", help="log folder")
     parser.add_argument("--tempfolder", type=str, default="./temp", help="temp folder")
     parser.add_argument("-t", "--timeout", type=float, help="timeout in secs", default=64)
+    parser.add_argument("-d", "--delimit", action='store_true', help="delimit grammar tokens by space")
     parser.add_argument("-m", "--max-tests", type=int,
                         help="limit number of tests", default=-1)
     parser.add_argument("-n", "--num-workers", type=int,

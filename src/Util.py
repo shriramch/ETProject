@@ -3,8 +3,9 @@ import random
 import subprocess
 
 
-def pretty_print(state):
-    s = state.atom_seq.replace("''", " ").replace("'", "")
+def pretty_print(state, delimit = False):
+    delimiter = " " if delimit else ""
+    s = state.atom_seq.replace("''", delimiter).replace("'", "")
     return s.replace("( ", "(").replace(" )", ")")
 
 
