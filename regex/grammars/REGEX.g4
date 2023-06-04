@@ -40,8 +40,15 @@ basic_regex
     : lower_char
     | upper_char
     | number
-    | '(' regex ')'  
-    ;
+    | '(' regex ')' 
+    | '[a-z]'
+    | '[A-Z]'
+    | '[0-9]' 
+    | '[^a-z]'
+    | '[^A-Z]'
+    | '[^0-9]'
+    ; 
+
 
 modifying_appendants
     : '*'

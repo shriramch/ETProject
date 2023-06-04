@@ -21,5 +21,5 @@ echo ./bin/prepare_grammar $grammar
 ./bin/prepare_grammar $grammar 
 
 echo ./bin/enumerate -n 8 "$commands" $bound 
-./bin/enumerate -n 8 --keep-files "$commands" $bound
+./bin/enumerate -n 8 "$commands" $bound
 

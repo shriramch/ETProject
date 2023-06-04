@@ -17,7 +17,7 @@ int main(int argc, char* argv[])
 	target_in.close();
 	
 	rstr << reg_in.rdbuf();
-	regex reg(rstr.str());
+	regex reg(rstr.str(), regex::no_mod_s | regex::no_mod_m);
 	reg_in.close();
 
 	if(regex_search(target, reg) == true)
