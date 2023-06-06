@@ -1,0 +1,5 @@
+grammar/*
+smt_solver_testing/__pycache__
+sat/solver_testing/__pycache__
+regex/solver_testing/__pycache__
+src/__pycache__

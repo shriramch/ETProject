@@ -11,6 +11,7 @@ target="./regex/target/target.txt"
 
 commands="python3 ./regex/testers/tester.py $target"
 commands=$commands";./regex/testers/tester $target"
+commands=$commands";perl ./regex/testers/tester.pl $target"
 
 rm -f temp/*
 
